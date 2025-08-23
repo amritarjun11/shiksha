@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Advanced P2P Video+Chat+File Share</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 20px;
+      background: #f5f5f5;
+      color: #333;
+    }
+    .container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+    }
+    .video-container {
+      flex: 1;
+      min-width: 300px;
+    }
+    .control-panel {
+      flex: 1;
+      min-width: 300px;
+      background: white;
+      padding: 15px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    video {
+      width: 100%;
+      background: #000;
+      border-radius: 8px;
+      margin-bottom: 10px;
+    }
+    #localVideo {
+      max-height: 200px;
+    }
+    #remoteVideo {
+      max-height: 400px;
+    }
+    .chat-container {
+      margin-top: 20px;
+    }
+    #chat {
+      height: 200px;
+      overflow-y: auto;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 10px;
+      margin-bottom: 10px;
+      background: white;
+    }
+    .message {
+      margin-bottom: 8px;
+      padding: 8px 12px;
+      border-radius: 18px;
+      max-width: 80%;
+      word-wrap: break-word;
+    }
+    .received {
+      background-color: #e5e5ea;
+      align-self: flex-start;
+    }
+    .sent {
+      background-color: #007aff;
+      color: white;
+      margin-left: auto;
+    }
+    .input-area {
+      display: flex;
+      gap: 10px;
+    }
+    #messageInput {
+      flex: 1;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 20px;
+      outline: none;
+    }
+    button {
+      padding: 10px 15px;
+      background-color: #007aff;
+      color: white;
+      border: none;
+      border-radius: 20px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+    button:hover {
+      background-color: #0062cc;
+    }
+    button:disabled {
+      background-color: #cccccc;
+      cursor: not-allowed;
+    }
+    .file-share {
+      margin-top: 15px;
+      padding: 15px;
+      background: #f8f9fa;
+      border-radius: 8px;
+    }
+    .file-info {
+      margin-top: 10px;
+      font-size: 14px;
+    }
+    progress {
+      width: 100%;
+      margin-top: 10px;
+    }
+    .connection-status {
+      padding: 10px;
+      border-radius: 5px;
+      margin-bottom: 15px;
+      text-align: center;
+    }
+    .disconnected {
+      background-color: #ffcccc;
+      color: #cc0000;
+    }
+    .connected {
+      background-color: #ccffcc;
+      color: #006600;
+    }
+    .tab-container {
+      margin-top: 20px;
+    }
+    .tab-buttons {
+      display: flex;
+      margin-bottom: -1px;
+    }
+    .tab-button {
+      padding: 10px 20px;
+      background: #e9ecef;
+      border: 1px solid #ddd;
+      border-bottom: none;
+      border-radius: 5px 5px 0 0;
+      cursor: pointer;
+    }
+    .tab-button.active {
+      background: white;
+      border-bottom: 1px solid white;
+    }
+    .tab-content {
+      display: none;
+      padding: 15px;
+      border: 1px solid #ddd;
+      background: white;
+      border-radius: 0 5px 5px 5px;
+    }
+    .tab-content.active {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <h1>Peer-to-Peer Video Chat with File Sharing</h1>
+  
+  <div class="connection-status disconnected" id="connectionStatus">
+    Not connected
+  </div>
+  
+  <div class="container">
+    <div class="video-container">
+      <video id="localVideo" autoplay muted></video>
+      <video id="remoteVideo" autoplay></video>
+    </div>
+    
+    <div class="control-panel">
+      <div class="tab-container">
+        <div class="tab-buttons">
+          <button class="tab-button active" onclick="openTab('chatTab')">Chat</button>
+          <button class="tab-button" onclick="openTab('connectTab')">Connect</button>
+          <button class="tab-button" onclick="openTab('filesTab')">Files</button>
+        </div>
+        
+        <div id="chatTab" class="tab-content active">
+          <div id="chat"></div>
+          <div class="input-area">
+            <input type="text" id="messageInput" placeholder="Type your message...">
+            <button onclick="sendMessage()">Send</button>
+          </div>
+        </div>
+        
+        <div id="connectTab" class="tab-content">
+          <h3>Create Offer</h3>
+          <textarea id="offer" rows="5" style="width:100%" readonly></textarea>
+          <button onclick="createOffer()">Create Offer</button>
+          
+          <h3>Enter Answer</h3>
+          <textarea id="answer" rows="5" style="width:100%" placeholder="Paste answer from other peer here"></textarea>
+          <button onclick="setAnswer()">Set Answer</button>
+          
+          <h3>Enter Offer</h3>
+          <textarea id="remoteOffer" rows="5" style="width:100%" placeholder="Paste offer from other peer here"></textarea>
+          <button onclick="setOfferAndCreateAnswer()">Create Answer</button>
+        </div>
+        
+        <div id="filesTab" class="tab-content">
+          <div class="file-share">
+            <h3>File Sharing</h3>
+            <input type="file" id="fileInput">
+            <button onclick="sendFile()" id="sendFileBtn" disabled>Send File</button>
+            <div class="file-info" id="fileInfo">No file selected</div>
+            <progress id="fileProgress" value="0" max="100" style="display:none;"></progress>
+          </div>
+          <div id="receivedFiles"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Global variables
+    let pc;
+    let localVideo = document.getElementById("localVideo");
+    let remoteVideo = document.getElementById("remoteVideo");
+    let chatBox = document.getElementById("chat");
+    let channel;
+    let fileChannel;
+    let currentFile = null;
+    let fileReader = new FileReader();
+    let chunkSize = 16384; // 16KB chunks
+    
+    // Initialize connection
+    function initConnection() {
+      pc = new RTCPeerConnection({
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' }
+        ]
+      });
+      
+      // Set up event handlers
+      pc.onicecandidate = e => {
+        if (!e.candidate) {
+          if (pc.localDescription.type === "offer") {
+            document.getElementById("offer").value = JSON.stringify(pc.localDescription);
+          }
+        }
+      };
+      
+      pc.ontrack = e => {
+        remoteVideo.srcObject = e.streams[0];
+        updateConnectionStatus(true);
+      };
+      
+      pc.oniceconnectionstatechange = () => {
+        if (pc.iceConnectionState === "disconnected") {
+          updateConnectionStatus(false);
+        }
+      };
+      
+      pc.ondatachannel = e => {
+        if (e.channel.label === "chat") {
+          setupDataChannel(e.channel);
+        } else if (e.channel.label === "file") {
+          setupFileChannel(e.channel);
+        }
+      };
+      
+      // Get user media
+      navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+        .then(stream => {
+          localVideo.srcObject = stream;
+          stream.getTracks().forEach(track => pc.addTrack(track, stream));
+        })
+        .catch(err => {
+          console.error("Error accessing media devices:", err);
+          alert("Could not access camera/microphone. Please check permissions.");
+        });
+      
+      // Set up file input
+      document.getElementById("fileInput").addEventListener("change", function(e) {
+        const file = e.target.files[0];
+        if (file) {
+          currentFile = file;
+          document.getElementById("fileInfo").textContent = `Selected: ${file.name} (${formatFileSize(file.size)})`;
+          document.getElementById("sendFileBtn").disabled = false;
+        }
+      });
+    }
+    
+    // Initialize when page loads
+    window.onload = initConnection;
+    
+    // Data channel for chat
+    function setupDataChannel(dc) {
+      channel = dc;
+      channel.onopen = () => {
+        console.log("Chat channel opened");
+        updateConnectionStatus(true);
+      };
+      channel.onclose = () => {
+        console.log("Chat channel closed");
+        updateConnectionStatus(false);
+      };
+      channel.onmessage = e => {
+        const data = JSON.parse(e.data);
+        if (data.type === "message") {
+          addMessage(data.content, false);
+        }
+      };
+    }
+    
+    // File channel for file sharing
+    function setupFileChannel(fc) {
+      fileChannel = fc;
+      let receivedFile = null;
+      let receivedSize = 0;
+      
+      fileChannel.onopen = () => console.log("File channel opened");
+      fileChannel.onclose = () => console.log("File channel closed");
+      
+      fileChannel.onmessage = async e => {
+        const data = JSON.parse(e.data);
+        
+        if (data.type === "file-start") {
+          // Start receiving a new file
+          receivedFile = {
+            name: data.name,
+            size: data.size,
+            type: data.fileType,
+            data: []
+          };
+          receivedSize = 0;
+          addFileMessage(`Receiving file: ${data.name} (${formatFileSize(data.size)})`, false);
+        } 
+        else if (data.type === "file-chunk") {
+          // Receive file chunk
+          if (receivedFile) {
+            receivedFile.data.push(data.chunk);
+            receivedSize += data.chunkSize;
+            
+            // Calculate progress
+            const progress = Math.round((receivedSize / receivedFile.size) * 100);
+            updateFileProgress(progress, false);
+            
+            // If file is complete
+            if (receivedSize >= receivedFile.size) {
+              const blob = new Blob(receivedFile.data, { type: receivedFile.type });
+              saveFile(blob, receivedFile.name);
+              addFileMessage(`File received: ${receivedFile.name}`, false);
+              receivedFile = null;
+            }
+          }
+        }
+      };
+    }
+    
+    // Create offer
+    function createOffer() {
+      if (!pc) initConnection();
+      
+      // Create data channels
+      channel = pc.createDataChannel("chat");
+      setupDataChannel(channel);
+      
+      fileChannel = pc.createDataChannel("file");
+      setupFileChannel(fileChannel);
+      
+      pc.createOffer()
+        .then(offer => pc.setLocalDescription(offer))
+        .catch(err => console.error("Error creating offer:", err));
+    }
+    
+    // Set remote offer and create answer
+    function setOfferAndCreateAnswer() {
+      if (!pc) initConnection();
+      
+      const offerText = document.getElementById("remoteOffer").value;
+      if (!offerText) return;
+      
+      try {
+        const offer = JSON.parse(offerText);
+        pc.setRemoteDescription(new RTCSessionDescription(offer))
+          .then(() => pc.createAnswer())
+          .then(answer => pc.setLocalDescription(answer))
+          .then(() => {
+            document.getElementById("answer").value = JSON.stringify(pc.localDescription);
+          })
+          .catch(err => console.error("Error creating answer:", err));
+      } catch (e) {
+        alert("Invalid offer format");
+      }
+    }
+    
+    // Set answer
+    function setAnswer() {
+      const answerText = document.getElementById("answer").value;
+      if (!answerText) return;
+      
+      try {
+        const answer = JSON.parse(answerText);
+        pc.setRemoteDescription(new RTCSessionDescription(answer))
+          .catch(err => console.error("Error setting answer:", err));
+      } catch (e) {
+        alert("Invalid answer format");
+      }
+    }
+    
+    // Send message
+    function sendMessage() {
+      const input = document.getElementById("messageInput");
+      const msg = input.value.trim();
+      
+      if (!msg || !channel || channel.readyState !== "open") return;
+      
+      channel.send(JSON.stringify({
+        type: "message",
+        content: msg
+      }));
+      
+      addMessage(msg, true);
+      input.value = "";
+      input.focus();
+    }
+    
+    // Add message to chat box
+    function addMessage(msg, isSender) {
+      const messageDiv = document.createElement("div");
+      messageDiv.className = `message ${isSender ? 'sent' : 'received'}`;
+      messageDiv.textContent = msg;
+      chatBox.appendChild(messageDiv);
+      chatBox.scrollTop = chatBox.scrollHeight;
+    }
+    
+    // Add file message to chat box
+    function addFileMessage(msg, isSender) {
+      const messageDiv = document.createElement("div");
+      messageDiv.className = `message ${isSender ? 'sent' : 'received'}`;
+      messageDiv.textContent = msg;
+      chatBox.appendChild(messageDiv);
+      chatBox.scrollTop = chatBox.scrollHeight;
+    }
+    
+    // Send file
+    function sendFile() {
+      if (!currentFile || !fileChannel || fileChannel.readyState !== "open") return;
+      
+      // Show progress bar
+      const progressBar = document.getElementById("fileProgress");
+      progressBar.style.display = "block";
+      progressBar.value = 0;
+      
+      // Send file info
+      fileChannel.send(JSON.stringify({
+        type: "file-start",
+        name: currentFile.name,
+        size: currentFile.size,
+        fileType: currentFile.type
+      }));
+      
+      addFileMessage(`Sending file: ${currentFile.name} (${formatFileSize(currentFile.size)})`, true);
+      
+      // Read and send file in chunks
+      let offset = 0;
+      
+      fileReader.onload = function(e) {
+        if (!fileChannel) return;
+        
+        const chunk = e.target.result;
+        fileChannel.send(JSON.stringify({
+          type: "file-chunk",
+          chunk: chunk,
+          chunkSize: chunk.byteLength
+        }));
+        
+        offset += chunk.byteLength;
+        
+        // Update progress
+        const progress = Math.round((offset / currentFile.size) * 100);
+        progressBar.value = progress;
+        updateFileProgress(progress, true);
+        
+        // If not finished, read next chunk
+        if (offset < currentFile.size) {
+          readNextChunk(offset);
+        } else {
+          // File send complete
+          addFileMessage(`File sent: ${currentFile.name}`, true);
+          progressBar.style.display = "none";
+          document.getElementById("fileInput").value = "";
+          document.getElementById("fileInfo").textContent = "No file selected";
+          document.getElementById("sendFileBtn").disabled = true;
+          currentFile = null;
+        }
+      };
+      
+      fileReader.onerror = function() {
+        addFileMessage("Error sending file", true);
+        progressBar.style.display = "none";
+      };
+      
+      function readNextChunk(offset) {
+        const slice = currentFile.slice(offset, offset + chunkSize);
+        fileReader.readAsArrayBuffer(slice);
+      }
+      
+      // Start reading first chunk
+      readNextChunk(0);
+    }
+    
+    // Update file progress
+    function updateFileProgress(progress, isSender) {
+      // You can implement progress display here if needed
+    }
+    
+    // Save received file
+    function saveFile(blob, fileName) {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.style.display = "none";
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }, 100);
+    }
+    
+    // Format file size
+    function formatFileSize(bytes) {
+      if (bytes === 0) return '0 Bytes';
+      const k = 1024;
+      const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+    
+    // Update connection status
+    function updateConnectionStatus(connected) {
+      const statusElement = document.getElementById("connectionStatus");
+      if (connected) {
+        statusElement.textContent = "Connected";
+        statusElement.className = "connection-status connected";
+      } else {
+        statusElement.textContent = "Not connected";
+        statusElement.className = "connection-status disconnected";
+      }
+    }
+    
+    // Tab switching
+    function openTab(tabName) {
+      // Hide all tab content
+      const tabContents = document.getElementsByClassName("tab-content");
+      for (let i = 0; i < tabContents.length; i++) {
+        tabContents[i].classList.remove("active");
+      }
+      
+      // Deactivate all tab buttons
+      const tabButtons = document.getElementsByClassName("tab-button");
+      for (let i = 0; i < tabButtons.length; i++) {
+        tabButtons[i].classList.remove("active");
+      }
+      
+      // Show the selected tab and activate its button
+      document.getElementById(tabName).classList.add("active");
+      event.currentTarget.classList.add("active");
+    }
+    
+    // Handle Enter key in message input
+    document.getElementById("messageInput").addEventListener("keypress", function(e) {
+      if (e.key === "Enter") {
+        sendMessage();
+      }
+    });
+  </script>
+</body>
+</html>
